@@ -1,0 +1,169 @@
+#!$LOCALAPPDATA\Programs\Python\Python39\python.exe
+import sys,re
+from collections import namedtuple as nt
+
+class elt_git_check():
+    '''
+    ... like gut check but punnier ...
+    This class checks commit message to assure:
+    1) subject line is always prefixed with EDW-XXXXX
+    2) subject line is not more than 50 char long
+    3) subject does not end with a period
+    4) if body exists that it is separated from subject by a blank line
+    5) that any body line isn't longer than 72 characters
+    '''
+    def __init__(self):
+        '''
+        set defaults
+        '''
+        self.commit_fl_name = sys.argv[1]
+        self.commit_fl = open(self.commit_fl_name,'r')
+        self.subj_txt = None
+        self.subj_len = None
+        self.subj_ln = None
+        self.body = []
+        self.body_ln_start = None
+        self.max_body_len = None
+        self.jira_num = None
+        self.pass_subj_pattern = None
+        self.pass_subj_length = None
+        self.pass_subj_ending = None
+        self.pass_body_separator = None
+        self.pass_body_length = None
+        self.test_string='pass'
+        self.subj_pattern = '^EDW-[0-9]{5}[ ]{1}'
+        self.mx_subj = 50
+        self.mx_body = 72
+        # parse file and give thumb up/down on passing tests
+        self.print_rules()
+        self.parse_file()
+        self.parse_rslts()
+
+
+
+    def print_rules(self):
+        '''
+        prints the rules we're looking for
+        '''
+        print('commit message rules:')
+        dct = {
+            'pass_subj_pattern':'subject must be EDW-XXXXX followed by a space'
+            , 'pass_subj_length':'subject length cannot be longer than 50 char'
+            , 'pass_subj_ending':'subject should not end with period'
+            , 'pass_body_separator':'if body included, should be '\
+                'separated by single blank line'
+            , 'pass_body_length':'body lines length cannot be longer '\
+                'than 72 caracters'
+        }
+        for i,(k,v) in enumerate(dct.items(),1):
+            msg = '\trule {idx}:"{key}" ({val})'.format(idx=i,key=k,val=v)
+            print(msg)
+        print('checking commit message..')
+
+
+    def count_fails(self,):
+        '''
+        prints the pass properties and returns how many are fails.
+        if the number is greater than 0 then that will be the value
+        returned to sys.exit()
+        '''
+        fail_cnt = 0
+        for k,v in self.__dict__.items():
+            if k.startswith(self.test_string):
+                v = 'N/A' if v is None else v
+                print('\t{key}: {val}'.format(key=k,val=v))
+                fail_cnt+=1 if v == False else 0
+
+            # if there are no fails, fail_cnt will be 0 and sys.exit()
+            # will exit with zero and commit will be allowed. Else if
+            # fai count > 0 then commit will not be allowed
+        print('rules failed: {}'.format(fail_cnt))
+        if fail_cnt:
+            print('\tcommit was aborted - fix any rules with "False" '\
+                    'result above and try again')
+        else:
+            print('\tcommit message rules PASSED =D')
+        return fail_cnt
+
+
+
+    def parse_rslts(self):
+        '''
+        this is what will return exit 0 or 1
+        '''
+        # set subject pattern test result
+        patrn_test = re.match(self.subj_pattern,self.subj_txt)
+        self.pass_subj_pattern = False if patrn_test is None else True
+        # set subje length test result
+        self.pass_subj_length = True if self.subj_len <=self.mx_subj else False
+        # test subj ending test result
+        ends_period = True if self.subj_txt.endswith('.') else False
+        self.pass_subj_ending = True if not ends_period else False
+        # run body tests if one was parsed
+        if len(self.body)>0:
+            # set body separator test result
+            lns_diff = self.body_ln_start - self.subj_ln
+            self.pass_body_separator = True if lns_diff == 2 else False
+            # set max body length test result
+            self.pass_body_length = True if self.max_body_len <=self.mx_body else False
+        # sys exit per the fail_count
+        f = self.count_fails()
+        print(f)
+        sys.exit(f)
+
+
+    def parse_line(self,tgln,i):
+        '''
+        removes new line character and returns a named tuple of the
+        stripped line along with the length
+        '''
+        # initiate named tuple generator
+        l = nt('ln',['txt','len','ln_num','skip',])
+        # prep variables for named tuple
+        tgln = tgln.rstrip('\n')
+        skip = True if tgln.startswith('#') or len(tgln)==0 else False
+        # create named tuple instance
+        ln = l(tgln,len(tgln),i,skip)
+        return ln
+
+
+    def parse_file(self):
+        '''
+        parses file and captures metadata to detect whether the rules
+        were met or not
+        '''
+        subj_found = False
+        body_found = False
+        for i,l in enumerate(self.commit_fl,1):
+            # parse line (returns a tuple object)
+            t = self.parse_line(l,i)
+            if t.skip:
+                continue
+            # capture subject metadata
+            elif not subj_found:
+                subj_found = True
+                # set subject properties
+                self.subj_txt = t.txt
+                self.subj_ln = t.ln_num
+                self.subj_len = t.len
+            # capture body text metadata
+            else:
+                # set body start line
+                if not body_found:
+                    body_found = True
+                    self.body_ln_start = t.ln_num
+                # test for max body length
+                if self.max_body_len is None:
+                    self.max_body_len = t.len
+                else:
+                    if t.len > self.max_body_len:
+                        self.max_body_len = t.len
+                # append body line to body
+                self.body.append(t.txt)
+
+def main():
+    chk = elt_git_check()
+
+
+if __name__ == '__main__':
+    main()
