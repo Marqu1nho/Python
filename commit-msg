@@ -31,7 +31,7 @@ class elt_git_check():
         self.pass_body_separator = None
         self.pass_body_length = None
         self.test_string='pass'
-        self.subj_pattern = '^EDW-[0-9]{5}[ ]{1}'
+        self.subj_pattern = r'^EDW-\d{5}\s?'
         self.mx_subj = 50
         self.mx_body = 72
         # parse file and give thumb up/down on passing tests
@@ -108,7 +108,6 @@ class elt_git_check():
             self.pass_body_length = True if self.max_body_len <=self.mx_body else False
         # sys exit per the fail_count
         f = self.count_fails()
-        print(f)
         sys.exit(f)
 
 
